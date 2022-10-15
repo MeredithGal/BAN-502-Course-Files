@@ -1,0 +1,300 @@
+---
+title: "Above_Median Project"
+author: "Tabitha Hagen"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+# Project for BAN 502 Predictive Analytics
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r LOAD_LIBRARIES, include=FALSE}
+options(tidyverse.quiet = TRUE)
+library(readr) #a fast and friendly way to read rectangular data (like 'csv', 'tsv', and 'fwf')
+library(tidyverse) #share an underlying design philosophy, grammar, and data structures of tidy data
+library(tidymodels) #package for modeling and machine learning using tidyverse
+library(esquisse) #shiny app to interactively view visuals and manipulate variables
+library(GGally) #create ggcorr and ggpairs plots
+library(ggcorrplot) #create an alternative to ggcorr plots
+library(MASS) #access to forward and backward selection algorithms
+```
+
+# Read in the “ames_student.csv” dataset. This dataset comes from a larger dataset which includes all residential home sales in Ames, Iowa between 2006 and 2010. The data set contains many explanatory variables on the quality and quantity of physical attributes of residential homes in Iowa sold between 2006 and 2010. Most of the variables describe information a typical home buyer would like to know about a property (square footage, number of bedrooms and bathrooms, size of lot, etc.). : https://www.tmwr.org/ames.html A good description of the dataset can be found here: http://jse.amstat.org/v19n3/decock.pdf
+
+```{r READ_IN_DATASET}
+ames_table <- read_csv("ames_student.csv")
+```
+
+```{r STRUCTURE_AND_SUMMARY}
+str(ames_table)
+summary(ames_table)
+```
+
+# This dataset requires quite a bit of cleaning and preparation before analysis. 
+
+```{r VIEWING_VARIABLES_FOR_MISSINGNESS}
+# check to see if there are missing values
+na_count <-sapply(ames_table, function(ames_table) sum(length(which(is.na(ames_table)))))
+na_count
+```
+
+# It appears that the missing Values have been removed from the student version of the data.
+
+```{r Viewing_UNIQUE_VALUES}
+# Looking at how many unique values there are for each variable
+sapply(ames_table, function(x) n_distinct(x))
+```
+
+# Considering which variables to change to factors below:
+## char Variables w/ 2 values: Street Utilities Central_Air Above_Median
+## char Variables w/ 3 values: Alley Land_Slope Paved_Drive
+## char Variables w/ 4 values: Lot_Shape Land_Contour Exter_Qual Garage_Finish
+## char Variables w/ 5 values: Lot_Config Bldg_Type Mas_Vnr_Type Exter_Cond Bsmt_Exposure Heating_QC Electrical Kitchen_Qual Pool_QC Fence Misc_Feature
+## char Variables w/ 6 values: Roof_Style Roof_Matl Foundation Bsmt_Qual Bsmt_Cond Heating Fireplace_Qu Garage_Qual Garage_Cond Sale_Condition
+## char Variables w/ 7 values: MS_Zoning BsmtFin_Type_1 BsmtFin_Type_2  Garage_Type 
+## char Variables w/ 8 Values: Condition_2 House_Style Functional
+## char Variables w/ 9 values: Condition_1 Overall_Cond
+## char Variables w/ 10 values: Overall_Qual
+## char Variables w/ 11+ values: MS_SubClass  Neighborhood   Exterior_1st Exterior_2nd 
+
+```{r Viewing_UNIQUE_2_4_VALUES}
+# View Unique Values in columns
+Column_2values <- unique(ames_table["Street"])
+Column_2values    # Pave Grvl
+Column_2values <- unique(ames_table["Utilities"])
+Column_2values    # AllPub NoSewr
+Column_2values <- unique(ames_table["Central_Air"])
+Column_2values    # Y N
+Column_2values <- unique(ames_table["Above_Median"])
+Column_2values    #Yes No
+
+Column_3values <- unique(ames_table["Alley"])
+Column_3values    # No_Alley_Access Paved Gravel
+Column_3values <- unique(ames_table["Land_Slope"])
+Column_3values    # Gtl	Mod	Sev
+Column_3values <- unique(ames_table["Paved_Drive"])
+Column_3values    # Partial_Pavement Paved Dirt_Gravel
+
+Column_4values <- unique(ames_table["Lot_Shape"])
+Column_4values    # Slightly_Irregular Regular	Moderately_Irregular Irregular
+Column_4values <- unique(ames_table["Land_Contour"])
+Column_4values    # Lvl HLS Bnk Low
+Column_4values <- unique(ames_table["Exter_Qual"])                  #Scale-4
+Column_4values    # Typical Good Excellent Fair
+Column_4values <- unique(ames_table["Garage_Finish"])
+Column_4values    # Fin Unf RFn No_Garage
+```
+
+```{r Viewing_UNIQUE_5_VALUES}
+# View Unique Values in columns
+
+Column_5values <- unique(ames_table["Lot_Config"])
+Column_5values    # Corner Inside CulDSac FR2 FR3
+Column_5values <- unique(ames_table["Bldg_Type"])         #DUPLICATES
+Column_5values    # OneFam TwnhsE Twnhs Duplex TwoFmCon
+Column_5values <- unique(ames_table["Mas_Vnr_Type"])
+Column_5values    # Stone None BrkFace BrkCmn CBlock
+Column_5values <- unique(ames_table["Exter_Cond"])                  #Scale-5
+Column_5values    # Typical Good Fair Excellent Poor
+Column_5values <- unique(ames_table["Bsmt_Exposure"])     #DUPLICATES
+Column_5values    # Gd No Av Mn No_Basement
+Column_5values <- unique(ames_table["Heating_QC"])                  #Scale-5
+Column_5values    # Fair Typical Excellent Good Poor
+Column_5values <- unique(ames_table["Electrical"])
+Column_5values    # SBrkr FuseA FuseF FuseP Unknown
+Column_5values <- unique(ames_table["Kitchen_Qual"])                #Scale-5
+Column_5values    # Fair Typical Excellent Good Poor
+Column_5values <- unique(ames_table["Pool_QC"])                     #Scale-5
+Column_5values    # No_Pool Excellent Typical Fair Good
+Column_5values <- unique(ames_table["Fence"])
+Column_5values    # No_Fence Minimum_Privacy Good_Privacy Good_Wood Minimum_Wood_Wire
+Column_5values <- unique(ames_table["Misc_Feature"])
+Column_5values    # None Gar2 Shed Othr Elev
+```
+
+```{r Viewing_UNIQUE_6_VALUES}
+# View Unique Values in columns
+Column_6values <- unique(ames_table["Roof_Style"])
+Column_6values    # Hip Gable Mansard Gambrel Shed Flat
+Column_6values <- unique(ames_table["Roof_Matl"])
+Column_6values    # CompShg	 WdShake Tar&Grv WdShngl Roll Metal
+Column_6values <- unique(ames_table["Foundation"])
+Column_6values    # CBlock PConc Wood BrkTil Slab Stone
+Column_6values <- unique(ames_table["Bsmt_Qual"])                   #Scale-6
+Column_6values    # Typical Good Excellent No_Basement Fair Poor
+Column_6values <- unique(ames_table["Bsmt_Cond"])                   #Scale-6
+Column_6values    # Good Typical Poor No_Basement Fair Excellent
+Column_6values <- unique(ames_table["Heating"])
+Column_6values    # GasA GasW Grav Wall Floor OthW
+Column_6values <- unique(ames_table["Fireplace_Qu"])                #Scale-6
+Column_6values    # Good No_Fireplace Typical Poor Excellent Fair
+Column_6values <- unique(ames_table["Garage_Qual"])                 #Scale-6
+Column_6values    # Typical No_Garage Fair Good Excellent Poor
+Column_6values <- unique(ames_table["Garage_Cond"])                 #Scale-6
+Column_6values    # Typical No_Garage Fair Excellent Poor Good
+Column_6values <- unique(ames_table["Sale_Condition"])
+Column_6values    # Normal Partial Family Abnorml Alloca AdjLand
+```
+
+```{r Viewing_UNIQUE_7_10_VALUES}
+# View Unique Values in columns
+Column_7values <- unique(ames_table["MS_Zoning"])
+Column_7values    # Residential_Low_Density Residential_High_Density Floating_Village_Residential Residential_Medium_Density C_all A_agr I_all
+Column_7values <- unique(ames_table["BsmtFin_Type_1"])
+Column_7values    # BLQ Rec ALQ GLQ Unf LwQ No_Basement
+Column_7values <- unique(ames_table["BsmtFin_Type_2"])
+Column_7values    # Unf LwQ BLQ Rec GLQ No_Basement ALQ
+Column_7values <- unique(ames_table["Garage_Type"])
+Column_7values    # Attchd BuiltIn Basment Detchd No_Garage CarPort More_Than_Two_Types
+
+Column_8values <- unique(ames_table["Condition_2"])
+Column_8values    # Norm Feedr PosA PosN Artery RRNn RRAe RRAn
+Column_8values <- unique(ames_table["House_Style"])
+Column_8values    #One_Story Two_Story One_and_Half_Fin SLvl SFoyer One_and_Half_Unf Two_and_Half_Unf Two_and_Half_Fin
+Column_8values <- unique(ames_table["Functional"])
+Column_8values    # Typ Mod Min2 Min1 Maj1 Maj2 Sev Sal
+
+Column_9values <- unique(ames_table["Condition_1"])
+Column_9values    # Norm Feedr RRAe PosA Artery PosN RRAn RRNn RRNe
+Column_9values <- unique(ames_table["Overall_Cond"])                #Scale-9
+Column_9values    # Average Above_Average Good Poor Very_Good Below_Average Excellent Fair Very_Poor
+
+Column_10values <- unique(ames_table["Overall_Qual"])               #Scale-10
+Column_10values    # Above_Average Average Good Very_Good Excellent Below_Average Fair Poor Very_Excellent Very_Poor
+```
+
+# Note: There are 1 scale w/ four criteria, 4 scales w/ five criteria, 5 scales with 6 criteria, 1 scale w/ 9 criteria and 1 scale w/ ten criteria.  A better way of receiving input would be to have a single measurement scale with a Not Applicable choice.
+
+```{r FACTOR_CONVERT_AND_RECODING}
+# Always do this prior to splitting # Create factors from character variable
+
+ames_table_clean = ames_table %>% 
+  # Create and order factors w/ 2 levels
+  mutate(Street = as_factor(Street)) %>% 
+    mutate(Street = fct_recode(Street,"Pave"="0","Grvl"="1")) %>% 
+  mutate(Utilities = as_factor(Utilities)) %>% 
+    mutate(Utilities = fct_recode(Utilities,"AllPub"="0","NoSewr"="1")) %>% 
+  mutate(Central_Air = as_factor(Central_Air)) %>% 
+    mutate(Central_Air = fct_recode(Central_Air,"N"="0","Y"="1")) %>% 
+  mutate(Above_Median = as_factor(Above_Median)) %>% 
+    mutate(Above_Median = fct_recode(Above_Median,"No"="0","Yes"="1")) %>% 
+  
+  # Create and order factors w/ 3 levels                           
+  mutate(Alley = as_factor(Alley)) %>% 
+    mutate(Alley = fct_recode(Alley,"No_Alley_Access"="0","Paved"="1", "Gravel" = "2")) %>% 
+  mutate(Land_Slope = as_factor(Land_Slope)) %>% 
+    mutate(Land_Slope = fct_recode(Land_Slope,"Gtl"="0","Mod"="1", "Sev" = "2")) %>% 
+  mutate(Paved_Drive = as_factor(Paved_Drive)) %>% 
+    mutate(Paved_Drive = fct_recode(Paved_Drive,"Partial_Pavement"="0","Paved"="1", "Dirt_Gravel" = "2")) %>%
+
+  # Create and order factors w/ 4 levels
+  mutate(Lot_Shape = as_factor(Lot_Shape)) %>% 
+    mutate(Lot_Shape = fct_recode(Lot_Shape,"Slightly_Irregular"="0","Regular"="1", "Moderately_Irregular" = "2", "Irregular" = "3")) %>% 
+  mutate(Land_Contour = as_factor(Land_Contour)) %>% 
+    mutate(Land_Contour = fct_recode(Land_Contour,"Lvl"="0","HLS"="1", "Bnk" = "2", "Low" = "3")) %>% 
+  mutate(Exter_Qual = as_factor(Exter_Qual)) %>% 
+    mutate(Exter_Qual = fct_recode(Exter_Qual,"Typical"="0","Good"="1", "Excellent" = "2", "Fair" = "3")) %>% 
+  mutate(Garage_Finish = as_factor(Garage_Finish)) %>% 
+    mutate(Garage_Finish = fct_recode(Garage_Finish,"No_Garage"="0","Unf"="1", "Fin" = "2", "RFn" = "3")) %>% 
+
+  # Fix Duplicate by combining factors TwnhsE and Twnhs 
+  mutate(Bldg_Type = as_factor(Bldg_Type)) %>% 
+    mutate(Bldg_Type = fct_recode(Bldg_Type,"OneFam"="0","TwnhsE"="1", "Twnhs" = "1", "Duplex" = "2", "TwoFmCon" = "3")) %>% 
+  
+  # Fix Duplicate by combining factors No and No_Basement 
+  mutate(Bsmt_Exposure = as_factor(Bsmt_Exposure)) %>% 
+    mutate(Bsmt_Exposure = fct_recode(Bsmt_Exposure,"No"="0","No_Basement"="0", "Mn" = "1", "Av" = "2", "Gd" = "3")) %>% 
+  
+  # Create and order factors w/ 5 levels
+  mutate(Lot_Config = as_factor(Lot_Config)) %>% 
+    mutate(Lot_Config = fct_recode(Lot_Config,"Corner"="0","Inside"="1", "CulDSac" = "2", "FR2" = "3", "FR3" = "4")) %>%
+  mutate(Mas_Vnr_Type = as_factor(Mas_Vnr_Type)) %>% 
+    mutate(Mas_Vnr_Type = fct_recode(Mas_Vnr_Type,"None"="0","Stone"="1", "BrkFace" = "2", "BrkCmn" = "3", "Cblock" = "4")) %>%
+  mutate(Exter_Cond = as_factor(Exter_Cond)) %>%
+    mutate(Exter_Cond = fct_recode(Exter_Cond,"Poor"="0","Fair"="1", "Typical" = "2", "Good" = "3", "Excellent" = "4")) %>%
+  mutate(Heating_QC = as_factor(Heating_QC)) %>% 
+     mutate(Heating_QC = fct_recode(Heating_QC,"Poor"="0","Fair"="1", "Typical" = "2", "Good" = "3", "Excellent" = "4")) %>%
+  mutate(Electrical = as_factor(Electrical)) %>% 
+    mutate(Electrical = fct_recode(Electrical,"SBrkr"="0","FuseA"="1", "FuseF" = "2", "FuseP" = "3", "Unknown" = "4")) %>%
+  mutate(Kitchen_Qual = as_factor(Kitchen_Qual)) %>% 
+    mutate(Kitchen_Qual = fct_recode(Kitchen_Qual,"Poor"="0","Fair"="1", "Typical" = "2", "Good" = "3", "Excellent" = "4")) %>%
+  mutate(Pool_QC = as_factor(Pool_QC)) %>% 
+    mutate(Pool_QC = fct_recode(Pool_QC,"No_Pool"="0","Fair"="1", "Typical" = "2", "Good" = "3", "Excellent" = "4")) %>%
+  mutate(Fence = as_factor(Fence)) %>% 
+    mutate(Fence = fct_recode(Fence,"No_Fence"="0","Minimum_Privacy"="1", "Minimum_Wood_Wire" = "2", "Good_Privacy" = "3", "Good_Wood" = "4")) %>%             
+  mutate(Misc_Feature = as_factor(Misc_Feature)) %>% 
+     mutate(Misc_Feature = fct_recode(Misc_Feature,"None"="0","Shed"="1", "Gar2" = "2", "Othr" = "3", "Elev" = "4"))  %>%     
+
+  # Create and order factors w/ 6 levels
+  mutate(Roof_Style = as_factor(Roof_Style)) %>% 
+    mutate(Roof_Style = fct_recode(Roof_Style,"Tar&Grv"="0","WdShake"="1", "WdShngl" = "2", "Roll" = "3", "CompShg" = "4", "Metal" = "5")) %>%
+  mutate(Roof_Matl = as_factor(Roof_Matl)) %>% 
+    mutate(Roof_Matl = fct_recode(Roof_Matl,"No_Pool"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Foundation = as_factor(Foundation)) %>% 
+    mutate(Foundation = fct_recode(Foundation,"CBlock"="0","PConc"="1", "Wood" = "2", "BrkTil" = "3", "Slab" = "4", "Stone" = "5")) %>%
+  mutate(Bsmt_Qual = as_factor(Bsmt_Qual)) %>% 
+    mutate(Bsmt_Qual = fct_recode(Bsmt_Qual,"No_Basement"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Bsmt_Cond = as_factor(Bsmt_Cond)) %>% 
+    mutate(Bsmt_Cond = fct_recode(Bsmt_Cond,"No_Basement"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Heating = as_factor(Heating)) %>% 
+    mutate(Heating = fct_recode(Heating,"GasA"="0","GasW"="1", "Grav" = "2", "Wall" = "3", "Floor" = "4", "OtherW" = "5")) %>%
+  mutate(Fireplace_Qu = as_factor(Fireplace_Qu)) %>% 
+    mutate(Fireplace_Qu = fct_recode(Fireplace_Qu,"No_Fireplace"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Garage_Qual = as_factor(Garage_Qual)) %>% 
+    mutate(Garage_Qual = fct_recode(Garage_Qual,"No_Garage"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Garage_Cond = as_factor(Garage_Cond)) %>% 
+    mutate(Garage_Cond = fct_recode(Garage_Cond,"No_Garage"="0","Poor"="1", "Fair" = "2", "Typical" = "3", "Good" = "4", "Excellent" = "5")) %>%
+  mutate(Sale_Condition = as_factor(Sale_Condition)) %>% 
+    mutate(Sale_Condition = fct_recode(Sale_Condition,"Abnorml"="0","Partial"="1", "Normal" = "2", "Alloca" = "3", "AdjLand" = "4", "Excellent" = "5")) %>%  
+
+  # Create and order factors w/ 7 levels  
+  mutate(MS_Zoning = as_factor(MS_Zoning)) %>% 
+    mutate(MS_Zoning = fct_recode(MS_Zoning,"I_all"="0","A_agr"="1", "C_all" = "2", "Floating_Village" = "3", "Residential_High_Density" = "4", "Residential_Medium_Density" = "5","Residential_Low_Density"="6")) %>%
+  mutate(BsmtFin_Type_1 = as_factor(BsmtFin_Type_1)) %>% 
+    mutate(BsmtFin_Type_1 = fct_recode(BsmtFin_Type_1,"No_Basement"="0","Unf"="1", "LwO" = "2", "GLQ" = "3", "ALQ" = "4", "BLQ" = "5","Rec"="6")) %>%
+  mutate(BsmtFin_Type_2 = as_factor(BsmtFin_Type_2)) %>% 
+    mutate(BsmtFin_Type_2 = fct_recode(BsmtFin_Type_2,"No_Basement"="0","Unf"="1", "LwO" = "2", "GLQ" = "3", "ALQ" = "4", "BLQ" = "5","Rec"="6")) %>%
+  mutate(Garage_Type = as_factor(Garage_Type)) %>% 
+    mutate(Garage_Type = fct_recode(Garage_Type,"No_Garage"="0","CarPort"="1", "Detchd" = "2", "Attchd" = "3", "BuiltIn" = "4", "Basment" = "5","More_Than_Two_Types"="6")) %>%
+  
+  # Create and order factors w/ 8 levels  
+  mutate(Condition_2 = as_factor(Condition_2)) %>% 
+    mutate(Condition_2 = fct_recode(Condition_2,"RRAn"="0","RRAe"="1", "RRNn" = "2", "Artery" = "3", "Feedr" = "4", "PosA" = "5","PosN"="6","Norm"="7")) %>%
+  mutate(House_Style = as_factor(House_Style)) %>% 
+    mutate(House_Style = fct_recode(House_Style,"Slvl"="0","One_Story"="1","SFoyer"="7", "One_and_Half_Unf" = "3", "One_and_Half_Fin" = "4", "Two_Story" = "5", "Two_and_Half_Unf" = "6","Two_and_Half_Fin"="7")) %>%
+  mutate(Functional = as_factor(Functional)) %>% 
+    mutate(Functional = fct_recode(Functional,"Sal"="0","Sev"="1", "Maj2" = "2", "Maj1" = "3", "Mod" = "4", "Typical" = "5","Min2"="6","Min1"="7")) %>%
+  
+  # Create and order factors w/ 9 levels  
+  mutate(Condition_1 = as_factor(Condition_1)) %>% 
+    mutate(Condition_1 = fct_recode(Condition_1,"RRAn"="0","RRAe"="1", "RRNn" = "2", "RRNe" = "3", "Artery" = "4", "Feeder" = "5","PosA"="6","PosN"="7", "Normal"="0")) %>%  
+  mutate(Overall_Cond = as_factor(Overall_Cond)) %>% 
+    mutate(Overall_Cond = fct_recode(Overall_Cond,"Very_Poor"="0","Poor"="1", "Below_Average" = "2", "Fair" = "3", "Average" = "4", "Above_Average" = "5","Good"="6","Very_Good"="7", "Excellent"="8")) %>%   
+  
+  # Create and order factors w/ 10 levels  
+  mutate(Overall_Qual = as_factor(Overall_Qual)) %>% 
+    mutate(Overall_Qual = fct_recode(Overall_Qual,"Very_Poor"="0","Poor"="1", "Below_Average" = "2", "Fair" = "3", "Average" = "4", "Above_Average" = "5","Good"="6","Very_Good"="7", "Excellent"="8", "Very_Excellent"="9")) %>%   
+  
+  # Change anything left that is character to a factor
+  mutate_if(is.character, as_factor) 
+
+str (ames_table_clean)
+summary(ames_table_clean)
+```
+
+# Data Exploration
+I chose to use the Esquisser app because it was less memory intensive.  This required me to save the graphs in another document and then analyze.  The PDF document of these graphs can be found here: https://drive.google.com/file/d/1rhv-ButSuqcScUmLIQRzTw5Bm9ZuT07v/view?usp=sharing
+
+```{r Use_Shiny_app_esquisser}
+# Create and save in another document the pictures of the bar graphs comparing Above_Median to all the other variables.  Will use this to choose which variables have a marked difference between Yes-AboveMedian and No-AboveMedian.
+#esquisser()  # commented out so it doesn't get knitted
+```
+
+```{r SAVE_DATA_FRAME}
+saveRDS(ames_table_clean, file="ames_cleaned_table.rds")
+```
+

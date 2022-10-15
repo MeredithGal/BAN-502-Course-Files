@@ -1,0 +1,244 @@
+---
+title: "Above_Median Project"
+author: "Tabitha Hagen"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+# Project for BAN 502 Predictive Analytics
+
+```{r LOAD_LIBRARIES, include=FALSE}
+options(tidyverse.quiet = TRUE)
+#library(readr) #a fast and friendly way to read rectangular data (like 'csv', 'tsv', and 'fwf')
+library(tidyverse) #share an underlying design philosophy, grammar, and data structures of tidy data
+library(tidymodels) #package for modeling and machine learning using tidyverse
+library(rpart) #for classification trees
+library(rpart.plot) #for plotting trees
+library(RColorBrewer) #better visualization of classification trees
+library(rattle) #better visualization of classification trees
+library(usemodels) #new package that helps with syntax
+library(ranger)
+library(caret) # package that allows us to see the confusion matrix
+library(xgboost)
+library(stacks)
+library(vip) #variable importance
+```
+
+# Read in the clean_ames_table which was created in "THagenBAN502Project_Phase1.rmd"
+
+```{r READ_IN_DATAFRAME_WITH_FACTORS}
+ames_df <- readRDS("new_ames_table.rds")
+```
+
+```{r CHECK_DATAFRAME}
+str (ames_df)
+summary(ames_df)
+```
+
+# Creating a Classification Tree
+
+Splitting the data into a Training subset and a Testing subset.  
+
+```{r PICK_SEEDS}
+set.seed(123) 
+ames_df_split = initial_split(ames_df, prop = 0.7, strata = Above_Median) #70% in training
+train = training(ames_df_split) 
+test = testing(ames_df_split)
+```
+
+Now that we have the split data, let's build a classification tree.
+
+```{r}
+ames_df_recipe = recipe(Above_Median ~ Overall_Qual+Mas_Vnr_Type+Exter_Qual+Foundation+Bsmt_Qual+Heating_QC+Kitchen_Qual+Fireplace_Qu+Garage_Type+Garage_Finish+Mas_Vnr_Area+Second_Flr_SF+Low_Qual_Fin_SF+Half_Bath+Fireplaces+Wood_Deck_SF+Open_Porch_SF+Enclosed_Porch+Screen_Porch+Neighborhood, train)
+
+tree_model = decision_tree() %>% 
+  set_engine("rpart", model = TRUE) %>%       # don't forget the model = TRUE flag
+  set_mode("classification")
+
+ames_df_wflow = 
+  workflow() %>% 
+  add_model(tree_model) %>% 
+  add_recipe(ames_df_recipe)
+
+ames_df_fit = fit(ames_df_wflow, train)
+```
+
+Let's take a look at our classification tree (a couple of ways)  
+```{r}
+#look at the tree's fit
+ames_df_fit %>%
+  extract_fit_parsnip() %>%
+  #pull_workflow_fit() %>%
+  pluck("fit")  #Warning: `pull_workflow_fit()` was deprecated in workflows 0.2.3.
+                #Please use `extract_fit_parsnip()` instead
+```
+
+```{r}
+#extract the tree's fit from the fit object
+tree = ames_df_fit %>% 
+  pull_workflow_fit() %>% 
+  pluck("fit")
+
+#plot the tree
+rpart.plot(tree)
+
+#alternative
+fancyRpartPlot(tree) 
+```
+
+Looking at the "rpart" complexity parameter "cp".    
+A lower Cp value will allow more splits to occur, but at a greater risk of overfitting. A higher Cp value may not provide enough splits. It won't split if the improvement is not good enough to wort the split.
+
+```{r}
+ames_df_fit$fit$fit$fit$cptable
+```
+
+I started with only the "Overall_Qual" variable to start my tree which had 1 level. From my prior tesing using a glm model, this was the strongest predictor. 
+
+Then based on my previous models, I added "Lot_Shape" and I gained a 2nd and 3rd tree level.  I kept those and added "Kitchen_Qual" and gained a 4th tree level. 
+
+Then I started added in all the other variables to see how this model could perform.  The Classification Tree model decided that ""Overall_Qual" was still the best predictor of Above_Median."Neighborhood" was the strongest predictor variable and that "Overall_Qual"  Interestingly, it placed some of the neighborhoods above the "Overall_Qual" level and others below it. It decided that there should be an optimal  complexity parameter value of .01000000 with a value xerror of 0.2659123.
+
+# Now I will look at XGBoost Models to further develop which predictor variables would be best:
+
+```{r USING_XGBOOST_TEMPLATE}
+#use_xgboost(Survived ~., train) #comment me out before knitting
+```
+
+We pick seeds to make sure that all sets of data get a fair amount of all the data.
+
+```{r PICK_SEED_N_FOLDS}
+set.seed(123)
+folds = vfold_cv(train, v = 5)
+```
+
+Copy and paste the model from the use_xgboost function. Modify a few elements. We'll let R tune the parameters by looking at 25 plausible combinations of parameters. 
+
+```{r USE_MODIFIED_XGBOOST_RECIPE}
+# Commented out because there s a saved model below named : "final_xgb_fit"
+#start_time = Sys.time() #for timing
+
+#xgboost_recipe <- 
+#  recipe(formula = Above_Median ~ ., data = train) %>% 
+#  #step_novel(all_nominal(), -all_outcomes()) %>% 
+#  step_dummy(all_nominal(), -all_outcomes(), one_hot = TRUE) %>% 
+#  step_zv(all_predictors()) 
+
+#xgboost_spec <- 
+#  boost_tree(trees = tune(), min_n = tune(), tree_depth = tune(), learn_rate = tune(), 
+#    loss_reduction = tune(), sample_size = tune()) %>% 
+#  set_mode("classification") %>% 
+#  set_engine("xgboost") 
+
+#xgboost_workflow <- 
+#  workflow() %>% 
+#  add_recipe(xgboost_recipe) %>% 
+#  add_model(xgboost_spec) 
+
+#set.seed(77680)
+#xgboost_tune <-
+#  tune_grid(xgboost_workflow, resamples = folds, grid = 25)
+
+#end_time = Sys.time()
+#end_time - start_time
+```
+
+```{r CREATE_BEST_XGB_MODEL}
+# Commented out because there s a saved model below named : "final_xgb_fit"
+#best_xgb = select_best(xgboost_tune, "accuracy")
+
+#final_xgb = finalize_workflow(
+#  xgboost_workflow,
+#  best_xgb
+#)
+
+#final_xgb
+```
+
+
+```{r FIT_BEST_XGBOOST_MODEL}
+# Commented out because there s a saved model below named : "final_xgb_fit"
+#fit the finalized workflow to our training data
+#final_xgb_fit = fit(final_xgb, train)
+```
+
+Saving
+
+```{r SAVING_AS_RDS_FILE}
+#saveRDS(final_xgb_fit,"AMES_xgb_fit.rds")
+```
+
+Opening saved XGB Model
+
+```{r READ_SAVED_XGB_MODEL}
+final_xgb_fit = readRDS("AMES_xgb_fit.rds")
+```
+
+Let's take a look at variable importance before proceeding to SHAP values. We first extract the fit and then feed it to the "vip" function.  
+
+```{r VIEW_BEST_XGBOOST_VARIABLE_IMPORTANCE}
+xg_mod = extract_fit_parsnip(final_xgb_fit)
+vip(xg_mod$fit)
+```
+
+# Random Forest Model  
+This model takes awhile, so I've commented it out and saved the model "rf_res-1.rds" to an RDS. 
+
+Set-up our folds
+
+```{r PICK_SEED_AND_FOLDS}
+set.seed(123)
+folds = vfold_cv(train, v = 5)
+```
+
+```{r CREATE_RANDOM_FOREST_MODEL}
+# rf_recipe = ames_df_recipe %>%  #Create basic recipe
+#   step_dummy(all_nominal(), -all_outcomes())
+ 
+#ctrl_grid = control_stack_grid() #necessary for working with tuning grids in the stacks package
+#ctrl_res = control_stack_resamples() #necessary for working with the stacks package
+
+# rf_model = rand_forest(mtry = tune(), min_n = tune(), trees = 100) %>% #add tuning of mtry and min_n parameters
+#   set_engine("ranger", importance = "permutation") %>% #added importance metric
+#   set_mode("classification")
+ 
+# rf_wflow = 
+#   workflow() %>% 
+#   add_model(rf_model) %>% 
+#   add_recipe(rf_recipe)
+ 
+# set.seed(123)
+# rf_res = tune_grid(
+#   rf_wflow,
+#   resamples = folds,
+#   grid = 200, 
+#   control = ctrl_grid
+#)
+```
+
+```{r SAVE_RANDOM_FOREST_MODEL}
+#saveRDS(rf_res,"rf_res.rds")
+```
+
+```{r READ_SAVED_RANDOM_FOREST_MODEL}
+rf_res = readRDS("rf_res.rds")
+```
+
+```{r PLT_RANDOM_FOREST_MODEL}
+rf_res %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  mutate(min_n = factor(min_n)) %>%
+  ggplot(aes(mtry, mean, color = min_n)) +
+  geom_line(alpha = 0.5, size = 1.5) +
+  geom_point() +
+  labs(y = "Accuracy")
+```
+
+As min (the colors) gets bigger, the accuracy gets worse.  mtry gets to maximize around 8.  Towards the right gets a rapidly decline in accuracy. 
+
+# CONCLUSION
+
+The four models did not have agreement which variables were strong predictors of a house being “Above_Median” price.  We saw “Overall_Qual” start strong only to be replaced by “Neighborhood” in our second model.  The third model tossed both of these aside and said that “Second_Flr_SF” and “Open_Porch_SF” mattered more.  Overall, I have to say that all of these together would probably make a pretty good model.
+

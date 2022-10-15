@@ -1,0 +1,276 @@
+---
+title: "Above_Median Project"
+author: "Tabitha Hagen"
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+---
+
+# Project for BAN 502 Predictive Analytics
+
+```{r LOAD_LIBRARIES, include=FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse) #share an underlying design philosophy, grammar, and data structures of tidy data
+library(tidymodels) #package for modeling and machine learning using tidyverse
+library(car) #for the VIF function
+```
+
+# Read in the clean_ames_table which was created in "THagenBAN502Project_Phase1.rmd"
+
+```{r READ_IN_DATAFRAME_WITH_FACTORS}
+clean_ames_table <- readRDS("ames_cleaned_table.rds")
+```
+
+```{r CHECK_DATAFRAME}
+str (clean_ames_table)
+summary(clean_ames_table)
+```
+
+```{r CREATE_DATARAME_WITH_POSSIBLE_PREDICTORS}
+new_ames_table = clean_ames_table %>% dplyr::select("Above_Median", "Lot_Shape", "Overall_Qual", "Mas_Vnr_Type", "Exter_Qual", "Foundation", "Bsmt_Qual", "Heating_QC", "Kitchen_Qual", "Fireplace_Qu", "Garage_Type", "Garage_Finish", "Mas_Vnr_Area", "Second_Flr_SF", "Low_Qual_Fin_SF", "Half_Bath", "Fireplaces", "Wood_Deck_SF", "Open_Porch_SF", "Enclosed_Porch", "Screen_Porch", "Neighborhood")
+```
+
+Build regression models with all of the variables. 
+
+```{r CREATE_GLM_MODEL_ALL}
+ames_glm_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+ames_recipe = recipe(Above_Median ~ Lot_Shape + Overall_Qual + Mas_Vnr_Type + Exter_Qual + Foundation + Bsmt_Qual + Heating_QC + Kitchen_Qual + Fireplace_Qu + Garage_Type + Garage_Finish + Mas_Vnr_Area + Second_Flr_SF + Low_Qual_Fin_SF + Half_Bath + Fireplaces + Wood_Deck_SF + Open_Porch_SF + Enclosed_Porch + Screen_Porch + Neighborhood, new_ames_table) %>% #survived by p class
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted
+   # survived was changed to a factor which is required do not dummify the binary response variable
+
+logreg_wf = workflow() %>%
+  add_recipe(ames_recipe) %>% 
+  add_model(ames_glm_model)
+
+ames_fit = fit(logreg_wf, new_ames_table)
+```
+
+```{r SUMMARIZE_GLM_MODEL_ALL}
+summary(ames_fit$fit$fit$fit)
+```
+
+The Second_Flr_SF variable is significant at 1.11e-06 because the p-value is less than 0.05.  However, it has a negative coefficient of -1.655e-03.
+
+The Wood_Deck_SF variable is significant at 3.67e-06 because the p-value is less than 0.05. However, it has a negative coefficient of -3.593e-03. 
+
+*** The Overall_Qual_Average variable is significant at 0.000414 because the p-value is less than 0.05. It has a positive coefficient of 8.103e-01, which is good.
+
+The Overall_Qual_Good  variable is significant at 0.000190 because the p-value is less than 0.05. However, it has a negative coefficient of -1.014e+00. This negative value is concerning.
+
+The Overall_Qual_Very_Good  variable is significant at 0.000643 because the p-value is less than 0.05. However, it has a negative coefficient of -3.334e+00.  This negative value is concerning.
+
+Neighborhood_Northwest_Ames  variable is significant at 0.000539 because the p-value is less than 0.05. However, it has a negative coefficient of -1.391e+00. This negative value is concerning.
+
+Neighborhood_Crawford  variable is significant at 0.000407 because the p-value is less than 0.05. However, it has a negative coefficient of -1.704e+00. This negative value is concerning.
+
+All these negative coefficients suggest multicollinearity.
+
+Note the AIC of this model (a measure of model quality) is 1040.6 which actually improved as variables were added. We can use this value to compare this model to others. Smaller AIC is better. 
+
+```{r VIF_ALL}
+car::vif(ames_fit$fit$fit$fit)
+```
+
+In general, seeing variables with VIF values greater than 4 indicates the presence of multicollinearity. There were almost all the variables with large VIF values.
+
+Next, build smaller regression models with subsets of the variables to look for more clues of multicollinearity
+
+
+```{r CREATE_GLM_MODEL1}
+ames_glm_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+ames_recipe = recipe(Above_Median ~ Overall_Qual + Heating_QC + Kitchen_Qual + Fireplace_Qu + Second_Flr_SF + Low_Qual_Fin_SF + Half_Bath + Fireplaces, new_ames_table) %>% #survived by p class
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted
+   # survived was changed to a factor which is required do not dummify the binary response variable
+
+logreg_wf = workflow() %>%
+  add_recipe(ames_recipe) %>% 
+  add_model(ames_glm_model)
+
+ames_fit = fit(logreg_wf, new_ames_table)
+```
+
+```{r SUMMARIZE_GLM_MODEL1}
+summary(ames_fit$fit$fit$fit)
+```
+
+*** The Overall_Qual_Average variable is significant at 1.58e-14 because the p-value is less than 0.05. It has a positive coefficient of 1.320e+00, which is still good.
+
+The Overall_Qual_Good  variable is significant at 4.08e-13 because the p-value is less than 0.05. However, it has a negative coefficient of -1.484e+00. This negative value is concerning.
+
+The Overall_Qual_Very_Good  variable is significant at 1.47e-08 because the p-value is less than 0.05. However, it has a negative coefficient of -3.430e+00. This negative value is concerning.
+
+***The Overall_Qual_Below_Average  variable is significant at 1.80e-07 because the p-value is less than 0.05. It has a positive coefficient of 2.228e+00, which is now good.
+
+The Kitchen_Qual_Good   variable is significant at 3.84e-10 because the p-value is less than 0.05. However, it has a negative coefficient of -1.066e+00. This negative value is concerning.
+
+The Fireplace_Qu_Typical  variable is significant at 5.52e-05 because the p-value is less than 0.05. However, it has a negative coefficient of -8.731e-01. This negative value is concerning.
+
+Note the AIC of this model (a measure of model quality) is now 1326.1 compared with the original 1040.6 which actually worsened in this subset. We can use this value to compare this model to others. Smaller AIC is better. 
+
+```{r VIF_Model1}
+car::vif(ames_fit$fit$fit$fit)
+```
+
+In general, seeing variables with VIF values greater than 4 indicates the presence of multicollinearity. Initially, almost all the variables had large VIF values. 
+
+Now, Second_Flr_SF has 1.462120, Low_Qual_Fin_SF  has 1.012381, and Half_Bath has 1.430206. These show no multicollinearity but are not significant above.
+
+*** Overall_Qual wit its 9 Levels has a VIF range from 1.000000 to 1.478980.  These show no multicollinearity, and are significant.
+
+Heating_Poor has 1.478980 but the other 3 levels are above a 4. This suggests that it isn't a good variable to predict Above_Median.
+
+*** Kitchen_Qual has 4 levels ranging from 1.000000 to 1.333457. These show no multicollinearity and are significant.
+
+** Fireplace_Qu has 5 levels with 4 levels ranging from 1.000000 to 1.575892 (Fireplace_Qu_No_Fireplace had 6.517486). Fireplace_Qu might be a good variable to predict Above_Median.
+
+Fireplaces was high at 5.668882.  This suggests that it isn't a good variable to predict Above_Median.
+
+```{r CREATE_GLM_MODEL_2}
+ames_glm_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+ames_recipe = recipe(Above_Median ~ Mas_Vnr_Area + Mas_Vnr_Type + Lot_Shape + Neighborhood, new_ames_table) %>% #survived by p class
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted
+   # survived was changed to a factor which is required do not dummify the binary response variable
+
+logreg_wf = workflow() %>%
+  add_recipe(ames_recipe) %>% 
+  add_model(ames_glm_model)
+
+ames_fit = fit(logreg_wf, new_ames_table)
+```
+
+```{r SUMMARIZE_GLM_MODEL_2}
+summary(ames_fit$fit$fit$fit)
+```
+
+*** The Mas_Vnr_Area variable is significant at 0.000587 because the p-value is less than 0.05.  However, it has a negative coefficient of -2.696e-03. This negative value is concerning.
+
+Mas_Vnr_Type was not significant.
+
+*** The Lot_Shape_Regular variable is significant at 6.52e-05 because the p-value is less than 0.05. However, and it has a positive coefficient of 5.782e-01, which is good. However, the other 2 levels are not significant. This negative value is concerning.
+ 
+
+The Neighborhood_Gilbert, Neighborhood_Northwest_Ames, Neighborhood_Somerset, Neighborhood_Northridge_Heights, Neighborhood_Bloomington_Heights , Neighborhood_Sawyer_West, Neighborhood_Clear_Creek, Neighborhood_College_Creek, Neighborhood_Crawford, Neighborhood_Mitchell, Neighborhood_Timberland , and Neighborhood_Veenker are variables that are significant because the p-value is less than 0.05. However, those 12/28 levels have a negative coefficient. The negative coefficients suggest multicollinearity.
+
+Note the AIC of this model (a measure of model quality) is now 1560.9 compared with the original 1040.6 which actually worsened in this subset. We can use this value to compare this model to others. Smaller AIC is better. 
+
+```{r VIF_2}
+car::vif(ames_fit$fit$fit$fit)
+```
+
+Only Mas_Vnr_Type_None and Mas_Vnr_Type_BrkFace  have VIF values over 4.  They were not significant and therefore Mas_Vnr_Type is not a good variable to predict Above_Median.
+
+**Mas_Vnr_Area had a VIR score of 2.407828 and was significant with a negative coefficient. Mas_Vnr_Area might be a good variable to predict Above_Median.
+
+**Lot_Shape had a VIR score between 1.053955 to 1.122660 and had 2 out of 3 variables significant with negative coefficients.Lot_Shape might be a good variable to predict Above_Median.
+
+The neighborhood variable is a mixed bag with less than 50% significance and low VIF values.  It's probably not a goo variable to predict Above_Median.
+
+```{r CREATE_GLM_MODEL_3}
+ames_glm_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+ames_recipe = recipe(Above_Median ~ Wood_Deck_SF + Exter_Qual + Foundation + Bsmt_Qual + Garage_Type + Garage_Finish + Open_Porch_SF + Enclosed_Porch + Screen_Porch, new_ames_table) %>% #survived by p class
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted
+   # survived was changed to a factor which is required do not dummify the binary response variable
+
+logreg_wf = workflow() %>%
+  add_recipe(ames_recipe) %>% 
+  add_model(ames_glm_model)
+
+ames_fit = fit(logreg_wf, new_ames_table)
+```
+
+```{r SUMMARIZE_GLM_MODEL_3}
+summary(ames_fit$fit$fit$fit)
+```
+
+Wood_Deck_SF  variable is significant at 6.63e-09because the p-value is less than 0.05. However, it has a negative coefficient of -3.251e-03. This negative value is concerning.
+
+Open_Porch_SF variable is significant at 4.73e-07 because the p-value is less than 0.05. However, it has a negative coefficient of -4.944e-03. This negative value is concerning.
+
+Screen_Porch  variable is significant at 6.82e-08 because the p-value is less than 0.05. However, it has a negative coefficient of -6.161e-03-6.161e-03. This negative value is concerning.
+
+Exter_Qual_Good variable is significant at 1.63e-05 because the p-value is less than 0.05. However, it has a negative coefficient of -1.595e+00. This negative value is concerning. It was only 1 out of 4 levels.
+
+Foundation_PConc variable is significant at < 2e-16 because the p-value is less than 0.05. However, it has a negative coefficient of -9.967e-01. This negative value is concerning. It was 1 out of 6 levels.
+
+Bsmt_Qual_Good variable is significant at 1.18e-06 because the p-value is less than 0.05. However, it has a negative coefficient of -8.188e-01. This negative value is concerning. It was 1 out of 6 levels.
+
+*** The Garage_Type_Detchd  variable is significant at 2.23e-11 because the p-value is less than 0.05. It has a positive coefficient of 1.329e+00, which is good. However, only 1 out of 7 levels were significant.  This is probably not a good variable to predict Above_Median.
+
+Garage_Finish_Unf variable is significant at 1.63e-05 because the p-value is less than 0.05. However, it has a negative coefficient of 8.957e-01. This negative value is concerning. It was 1 out of 4 levels.
+
+All these negative coefficients suggest multicollinearity.
+
+Note the AIC of this model (a measure of model quality) is now 1459.6 compared with the original 1040.6 which actually worsened in this subset. We can use this value to compare this model to others. Smaller AIC is better. 
+
+```{r VIF_3}
+car::vif(ames_fit$fit$fit$fit)
+```
+
+In general, seeing variables with VIF values greater than 4 indicates the presence of multicollinearity. There were almost all the variables with large VIF values.  There was only 1 variable level with a positive coefficient so this model did not produce any viable predictors for Above_Median.
+
+At the end of analyzing the three subsets, Overall_Qu and Kitchen_Qu are the best predictors with Fireplace_Qu, Lot_Shape, and Mas_Vnr_Area strong Maybe's.   
+
+Testing our conclusion with a final GLM model:
+
+```{r CREATE_GLM_MODEL_LAST}
+ames_glm_model = 
+  logistic_reg() %>% #note the use of logistic_reg
+  set_engine("glm") #standard logistic regression engine is glm
+
+ames_recipe = recipe(Above_Median ~ Overall_Qual + Kitchen_Qual + Lot_Shape + Mas_Vnr_Area, new_ames_table) %>% #survived by p class
+  step_dummy(all_nominal(), -all_outcomes()) #exclude the response variable from being dummy converted
+   # survived was changed to a factor which is required do not dummify the binary response variable
+
+logreg_wf = workflow() %>%
+  add_recipe(ames_recipe) %>% 
+  add_model(ames_glm_model)
+
+ames_fit = fit(logreg_wf, new_ames_table)
+```
+
+```{r SUMMARIZE_GLM_MODEL_LAST}
+summary(ames_fit$fit$fit$fit)
+```
+
+The Mas_Vnr_Area  variable is significant at 2.87e-06 because the p-value is less than 0.05.  However, it has a negative coefficient of -2.300e-03  which doesn't make sense.
+
+*** The Overall_Qual_Average variable is significant at < 2e-16 because the p-value is less than 0.05. It has a positive coefficient of 1.516e+00, which is good.
+
+The Overall_Qual_Good  variable is significant at < 2e-16 because the p-value is less than 0.05.  However, it has a negative coefficient of -1.636e+00 which doesn't make sense.
+
+Overall_Qual_Very_Good  variable is significant at 2.16e-08 because the p-value is less than 0.05.  However, it has a negative coefficient of -3.356e+00 which doesn't make sense.
+
+ The Overall_Qual_Below_Average  variable is significant at 2.64e-10 because the p-value is less than 0.05. It has a positive coefficient of 2.562e+00, which is doesn't make sense.
+
+The Kitchen_Qual_Good  variable is significant at 3.76e-14 because the p-value is less than 0.05.  However, it has a negative coefficient of -1.127e+00 which doesn't make sense.  
+
+*** The Lot_Shape_Regular variable is significant at 4.70e-15 because the p-value is less than 0.05. It has a positive coefficient of  1.124e+00 , which is good.
+
+All these logically opposite coefficients suggest multicollinearity.
+
+Note the AIC of this model (a measure of model quality) is now 1476.9 compared with the original 1040.6 which actually worsened in this subset. We can use this value to compare this model to others. Smaller AIC is better. 
+
+```{r VIF_LAST}
+car::vif(ames_fit$fit$fit$fit)
+```
+
+The VIF values show no multicollinearity.
+
+This leaves Overall_Qual and Lot_Shape the best predictors, but they are not without problems.
+
+```{r SAVE_DATA_FRAME}
+saveRDS(new_ames_table, file="new_ames_table.rds")
+```
+
